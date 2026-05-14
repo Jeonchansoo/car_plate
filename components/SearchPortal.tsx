@@ -3,79 +3,15 @@ import { User, CarRecord, ColumnDef } from '../types';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { usePressAndHoldSpeech } from '../hooks/usePressAndHoldSpeech';
 import { requestMicrophonePermission, checkMicrophonePermission } from '../utils/microphonePermission';
-
-const INITIAL_RECORDS: CarRecord[] = [
-  { id: 1, name: '홍길동', carNumber: '24머 3734', 출입증: '[1] 상주 000' },
-  { id: 2, name: '오감자', carNumber: '31구 2625', 출입증: '[1] 상주 001' },
-  { id: 3, name: '김갑동', carNumber: '102다3734', 출입증: '[1] 상주 002' },
-  { id: 4, name: '이을숙', carNumber: '12사 1234', 출입증: '[1] 상주 003' },
-  { id: 5, name: '지소연', carNumber: '50두9888', 출입증: '[1] 상주 004' },
-  { id: 6, name: '카리나', carNumber: '98사 1235', 출입증: '[1] 상주 205' },
-  { id: 7, name: '전봇대', carNumber: '72카4252', 출입증: '[1] 상주 120' },
-  { id: 8, name: '이세리나', carNumber: '101자 7889', 출입증: '[1] 상주 301' },
-];
-
-const DEFAULT_COLUMNS: ColumnDef[] = [
-  { id: 'name', label: '이름' },
-  { id: 'carNumber', label: '차량 번호' },
-  { id: '출입증', label: '출입증' }
-];
-
-/**
- * 차량번호 문자열에서 끝에서 4자리 숫자를 추출
- * '24머 3734' → '3734'
- * '24머3734' → '3734'
- * '102다 3734' → '3734'
- * '101자7889' → '7889'
- */
-function extractLastFourDigits(carNum: string): string {
-  if (!carNum) return '';
-  // 모든 숫자를 추출
-  const allDigits = carNum.replace(/[^0-9]/g, '');
-  if (allDigits.length >= 4) {
-    return allDigits.slice(-4);
-  }
-  return allDigits;
-}
-
-/**
- * 차량번호 컬럼의 값을 동적으로 찾기
- * - 먼저 carNumber 키를 확인
- * - 없으면 컬럼 정의에서 '차량' 또는 '번호'가 포함된 컬럼 탐색
- */
-function getCarNumberValue(record: CarRecord, columns: ColumnDef[]): string {
-  const carColId = getCarNumberColumnId(columns);
-
-  // 1. 표준 키 확인
-  if (record.carNumber) return String(record.carNumber);
-  
-  // 2. 컬럼 정의에서 차량번호 관련 컬럼 찾기
-  if (carColId && record[carColId]) return String(record[carColId]);
-  
-  // 3. 모든 필드에서 차량번호 패턴 찾기 (숫자+한글+숫자 패턴)
-  for (const key of Object.keys(record)) {
-    if (key === 'id' || key === 'name') continue;
-    const val = String(record[key] || '');
-    if (/\d+[가-힣]\s?\d{4}/.test(val)) return val;
-  }
-  
-  return '';
-}
-
-/**
- * 차량번호 컬럼 ID를 동적으로 찾기
- * - carNumber 기본 키 우선
- * - 없으면 컬럼 정의에서 '차량', '번호', 'plate' 포함 컬럼 탐색
- */
-function getCarNumberColumnId(columns: ColumnDef[]): string | null {
-  if (columns.find(c => c.id === 'carNumber')) return 'carNumber';
-
-  const carCol = columns.find(c =>
-    c.label.includes('차량') || c.label.includes('번호') || c.label.toLowerCase().includes('plate')
-  );
-
-  return carCol ? carCol.id : null;
-}
+import {
+  DEFAULT_COLUMNS,
+  INITIAL_RECORDS,
+  getNameCol,
+  getCarNumberCol,
+  getThirdCol,
+  getCarNumberValue,
+  extractLastFourDigits,
+} from '../constants';
 
 const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
   const [query, setQuery] = useState('');
@@ -123,7 +59,6 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
         const permissionState = await checkMicrophonePermission();
         
         if (permissionState === 'prompt') {
-          // 권한이 요청 needed 상태이면, 첫 음성 입력 시 자동으로 요청됨
           console.log('마이크 권한이 필요합니다. 음성 입력 버튼을 클릭하면 권한을 요청합니다.');
         } else if (permissionState === 'denied') {
           console.log('마이크 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해주세요.');
@@ -139,7 +74,6 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
   const handleVoiceInputClick = async () => {
     if (speechStatus === 'unsupported') return;
     
-    // 마이크 권한이 필요한 경우 자동 요청
     const hasPermission = await requestMicrophonePermission();
     if (!hasPermission) {
       console.log('마이크 권한이 필요합니다.');
@@ -148,7 +82,6 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
     if (isListening) {
       stopListening();
     } else {
-      // 새 음성 입력 시작 시 기존 조회 결과 초기화
       setQuery('');
       setHasSearched(false);
       startListening();
@@ -156,17 +89,16 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
   };
 
   const handlePressAndHoldStart = async () => {
-    // 마이크 권한이 필요한 경우 자동 요청
     const hasPermission = await requestMicrophonePermission();
     if (!hasPermission) {
       console.log('마이크 권한이 필요합니다.');
     }
     handleMouseDown();
   };
+
   const runSearch = (value: string) => {
     setHasSearched(true);
 
-    // 검색어에서 숫자만 추출
     const searchDigits = value.replace(/[^0-9]/g, '');
     if (!searchDigits) {
       setResults([]);
@@ -177,15 +109,12 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
       const carNumber = getCarNumberValue(record, columns);
       if (!carNumber) return false;
       
-      // 차량번호에서 끝 4자리 추출 (띄어쓰기 무관)
       const lastFour = extractLastFourDigits(carNumber);
       
-      // 정확히 4자리인 경우에만 완전 일치 검색
       if (searchDigits.length === 4) {
         return lastFour === searchDigits;
       }
       
-      // 4자리 미만인 경우 끝 4자리에서 시작하는지 확인
       return lastFour.startsWith(searchDigits);
     });
 
@@ -203,7 +132,6 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
     const searchValue = value.toLowerCase().trim();
     
     const filtered = records.filter(record => {
-      // 모든 필드에서 검색 (문자와 숫자 모두)
       return Object.values(record).some(fieldValue => {
         if (fieldValue === null || fieldValue === undefined) return false;
         const fieldString = String(fieldValue).toLowerCase();
@@ -239,7 +167,7 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
       <section className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-4 text-white shadow-xl shadow-blue-200">
         <div className="mb-3">
           <h2 className="text-lg font-bold">안녕하세요, {user.name}님!</h2>
-          <p className="text-blue-100 text-xs mt-1">차량번호, 이름, 출입증 등 문자나 숫자를 입력하여 차주 정보 조회</p>
+          <p className="text-blue-100 text-xs mt-1">{columns.map(c => c.label).join(', ')} 등 문자나 숫자를 입력하여 차주 정보 조회</p>
         </div>
 
         <form onSubmit={handleSearch} className="relative w-full">
@@ -298,13 +226,11 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
             type="button"
             onClick={() => {
               if (hasSearched) {
-                // 검색 후 결과가 있든 없든 초기화
                 setQuery('');
                 setHasSearched(false);
                 setResults([]);
                 setIsTextSearchMode(false);
               } else if (query.trim()) {
-                // 결과가 없을 때는 검색 실행
                 setIsTextSearchMode(true);
                 runTextSearch(query);
               }
@@ -384,26 +310,25 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
         <div className="divide-y">
           {results.length > 0 ? (
             results.map((record) => {
-              const carNumber = getCarNumberValue(record, columns);
-              const nameCol = columns.find(c => c.label.includes('이름') || c.id === 'name');
-              const passCol = columns.find(c => c.label.includes('출입증') || c.id === '출입증');
-              const displayName = nameCol ? record[nameCol.id] : record.name;
-              const displayPass = passCol ? record[passCol.id] : record['출입증'];
-              const carNumberColId = getCarNumberColumnId(columns);
+              // 위치(인덱스) 기반으로 컬럼 역할 결정
+              const nameColDef = getNameCol(columns);       // columns[0] = 이름
+              const carColDef = getCarNumberCol(columns);    // columns[1] = 차량번호
+              const thirdColDef = getThirdCol(columns);      // columns[2] = 세 번째 컬럼
 
-              const extraColumns = columns.filter(c =>
-                c.id !== nameCol?.id &&
-                c.id !== passCol?.id &&
-                c.id !== carNumberColId
-              );
+              const displayName = nameColDef ? record[nameColDef.id] : '';
+              const carNumber = carColDef ? String(record[carColDef.id] || '') : '';
+              const displayThird = thirdColDef ? record[thirdColDef.id] : '';
+
+              // 처음 3개 컬럼 이외의 추가 컬럼
+              const extraColumns = columns.slice(3);
               
               return (
                 <div key={record.id} className="p-2 space-y-1 hover:bg-blue-50/30 transition border-b-2 border-slate-300 shadow-sm">
-                  {/* 여러 행: 차주 성함, 출입증 - 모바일에서도 가로로 표시 */}
+                  {/* 컬럼1(이름), 컬럼3(세 번째) - 모바일에서도 가로로 표시 */}
                   <div className="grid grid-cols-12 gap-1 min-w-0 items-stretch">
-                    {/* 차주 성함 */}
+                    {/* 첫 번째 컬럼 (이름 역할) */}
                     <div className="col-span-4 flex flex-col items-center justify-center py-1 px-1 bg-white rounded border border-slate-200 min-w-0">
-                      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5 text-center">차주 성함</div>
+                      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5 text-center">{nameColDef?.label || '이름'}</div>
                       <div className="text-xl font-black text-slate-900 text-center truncate w-full">{displayName}</div>
                       {extraColumns.length > 0 && (
                         <div className="mt-0.5 space-y-0.5">
@@ -421,16 +346,16 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
                       )}
                     </div>
 
-                    {/* 출입증 */}
-                    {displayPass && (
+                    {/* 세 번째 컬럼 (출입증/분류 등 역할) */}
+                    {displayThird && (
                       <div className="col-span-8 flex flex-col items-center justify-center py-1 px-1 bg-blue-50 rounded border border-blue-200 min-w-0">
-                        <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5 text-center">출입증</div>
-                        <div className="text-2xl font-black text-blue-700 text-center truncate w-full">{displayPass}</div>
+                        <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5 text-center">{thirdColDef?.label || ''}</div>
+                        <div className="text-2xl font-black text-blue-700 text-center truncate w-full">{displayThird}</div>
                       </div>
                     )}
                   </div>
 
-                  {/* 추가 정보가 있을 경우 표시 */}
+                  {/* 추가 정보가 있을 경우 표시 (4번째 컬럼부터) */}
                   {extraColumns.length > 1 && (
                     <div className="p-1 bg-slate-50 rounded border border-slate-200">
                       <div className="text-[10px] font-semibold text-slate-700 mb-0.5">추가 정보</div>
@@ -449,9 +374,9 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
                     </div>
                   )}
 
-                  {/* 수직 열: 차량 번호 */}
+                  {/* 두 번째 컬럼 (차량 번호 역할) */}
                   <div className="bg-slate-100 px-2 py-1 rounded border border-slate-200">
-                    <div className="text-[8px] text-slate-400 font-bold uppercase mb-0.5 text-center tracking-[0.2em]">Vehicle Number</div>
+                    <div className="text-[8px] text-slate-400 font-bold uppercase mb-0.5 text-center tracking-[0.2em]">{carColDef?.label || 'Vehicle Number'}</div>
                     <div className="text-4xl font-black text-slate-800 tracking-wider whitespace-nowrap text-center">{carNumber}</div>
                   </div>
                 </div>

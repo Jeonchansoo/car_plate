@@ -1,23 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CarRecord, User, UserStatus, UserRole, ColumnDef } from '../types';
 import * as XLSX from 'xlsx';
-
-const DEFAULT_COLUMNS: ColumnDef[] = [
-  { id: 'name', label: '이름' },
-  { id: 'carNumber', label: '차량 번호' },
-  { id: '출입증', label: '출입증' }
-];
-
-const INITIAL_RECORDS: CarRecord[] = [
-  { id: 1, name: '홍길동', carNumber: '24머 3734', 출입증: '[1] 상주 000' },
-  { id: 2, name: '오감자', carNumber: '31구 2625', 출입증: '[1] 상주 001' },
-  { id: 3, name: '김갑동', carNumber: '102다 3734', 출입증: '[1] 상주 002' },
-  { id: 4, name: '이을숙', carNumber: '12사 1234', 출입증: '[1] 상주 003' },
-  { id: 5, name: '지소연', carNumber: '50두 7889', 출입증: '[1] 상주 004' },
-  { id: 6, name: '카리나', carNumber: '98사 1235', 출입증: '[1] 상주 205' },
-  { id: 7, name: '전봇대', carNumber: '72카 4252', 출입증: '[1] 상주 120' },
-  { id: 8, name: '이세리나', carNumber: '101자 7889', 출입증: '[1] 상주 301' },
-];
+import { DEFAULT_COLUMNS, INITIAL_RECORDS } from '../constants';
 
 /**
  * 한글이 깨졌는지 감지하는 함수
@@ -33,19 +17,42 @@ function hasGarbledKorean(text: string): boolean {
 }
 
 /**
- * 업로드된 헤더를 기존 컬럼 ID에 매핑하는 함수
- * - 기존 DEFAULT_COLUMNS의 label과 일치하면 기존 id 사용
- * - 일치하지 않으면 새 id 생성
+ * 업로드된 헤더를 기존 컬럼에 위치(인덱스) 기반으로 매핑
+ * - 업로드 파일의 첫 번째 열 → columns[0]의 id
+ * - 업로드 파일의 두 번째 열 → columns[1]의 id
+ * - 업로드 파일의 세 번째 열 → columns[2]의 id
+ * - 그 이상의 열 → 새 컬럼 자동 추가
+ *
+ * 이렇게 하면 CSV/엑셀 헤더 이름이 무엇이든 상관없이 위치로 매핑됩니다.
  */
-function mapHeaderToColumnId(header: string, existingColumns: ColumnDef[]): string {
-  // 기존 컬럼에서 label이 일치하는 것 찾기
-  const found = existingColumns.find(c => c.label === header);
-  if (found) return found.id;
-  // DEFAULT_COLUMNS에서도 찾기
-  const defaultFound = DEFAULT_COLUMNS.find(c => c.label === header);
-  if (defaultFound) return defaultFound.id;
-  // 새 ID 생성
-  return 'col_' + Date.now() + Math.random();
+function mapHeadersByPosition(
+  headerRow: string[],
+  existingColumns: ColumnDef[]
+): { headerToColId: Record<string, string>; updatedColumns: ColumnDef[] } {
+  const newCols = [...existingColumns];
+  const headerToColId: Record<string, string> = {};
+
+  headerRow.forEach((header, idx) => {
+    if (!header || header.toLowerCase() === 'id') return;
+
+    if (idx < newCols.length) {
+      // 기존 컬럼 위치에 매핑 (라벨은 업로드 파일의 헤더로 업데이트)
+      headerToColId[header] = newCols[idx].id;
+    } else {
+      // 기존 컬럼 수보다 많은 열이면 새 컬럼 추가
+      // 먼저 같은 label이 이미 있는지 확인
+      const existingByLabel = newCols.find(c => c.label === header);
+      if (existingByLabel) {
+        headerToColId[header] = existingByLabel.id;
+      } else {
+        const newId = 'col_' + Date.now() + '_' + idx;
+        headerToColId[header] = newId;
+        newCols.push({ id: newId, label: header });
+      }
+    }
+  });
+
+  return { headerToColId, updatedColumns: newCols };
 }
 
 const AdminDashboard: React.FC = () => {
@@ -88,7 +95,7 @@ const AdminDashboard: React.FC = () => {
     setNewRecordVals({});
   };
 
-  // 요청 1: 전체 삭제 시 수동등록/속성관리도 초기화
+  // 전체 삭제 시 수동등록/속성관리도 초기화
   const handleDeleteSelected = () => {
     if (selectedIds.length === 0) {
       alert('삭제할 항목을 선택해주세요.');
@@ -99,7 +106,6 @@ const AdminDashboard: React.FC = () => {
 
     if (confirm(`선택한 ${selectedIds.length}개의 데이터를 삭제하시겠습니까?${isFullDelete ? '\n\n⚠️ 전체 데이터를 삭제하면 속성 관리도 기본값으로 초기화됩니다.' : ''}`)) {
       if (isFullDelete) {
-        // 전체 삭제: 레코드, 컬럼, 폼 모두 초기화
         saveRecords([]);
         saveColumns(DEFAULT_COLUMNS);
         setNewRecordVals({});
@@ -112,7 +118,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // 요청 2: CSV/엑셀 업로드 시 한글 깨짐 수정
+  // CSV/엑셀 업로드
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -120,7 +126,6 @@ const AdminDashboard: React.FC = () => {
     const isCSV = file.name.toLowerCase().endsWith('.csv');
 
     if (isCSV) {
-      // CSV 파일: 여러 인코딩으로 시도하여 한글 깨짐 방지
       const tryEncodings = ['utf-8', 'euc-kr', 'cp949', 'utf-16le'];
       let attemptIndex = 0;
 
@@ -133,11 +138,8 @@ const AdminDashboard: React.FC = () => {
         const reader = new FileReader();
         reader.onload = (event) => {
           let text = event.target?.result as string;
-          
-          // BOM 제거
           text = text.replace(/^\uFEFF/, '');
 
-          // 한글 깨짐 감지
           if (hasGarbledKorean(text)) {
             attemptIndex++;
             tryReadWithEncoding();
@@ -156,14 +158,13 @@ const AdminDashboard: React.FC = () => {
 
       tryReadWithEncoding();
     } else {
-      // XLSX/XLS 파일: ArrayBuffer로 읽기 (XLSX 포맷이 인코딩 자체 처리)
       const reader = new FileReader();
       reader.onload = (event) => {
         try {
           const data = new Uint8Array(event.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { 
             type: 'array',
-            codepage: 949 // CP949 (EUC-KR) 코드페이지 지정
+            codepage: 949
           });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
@@ -183,22 +184,16 @@ const AdminDashboard: React.FC = () => {
     e.target.value = '';
   };
 
-  // CSV 텍스트를 파싱하여 데이터로 변환
   const processCSVText = (text: string) => {
     try {
-      // BOM 제거 및 불필요한 공백 제거
       const cleanText = text.replace(/^\uFEFF/, '').trim();
-      
-      // XLSX로 CSV 파싱 (더 안정적인 한글 처리)
       const workbook = XLSX.read(cleanText, { 
         type: 'string',
-        codepage: 949 // CP949 (EUC-KR) 코드페이지 지정
+        codepage: 949
       });
-      
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
       const json = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
-      
       processUploadedData(json);
     } catch (error) {
       console.error('CSV 파싱 오류:', error);
@@ -206,30 +201,22 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // 요청 3: 업로드 데이터의 컬럼 매핑 수정
+  /**
+   * 업로드 데이터 처리 - 위치(인덱스) 기반 매핑
+   * CSV/엑셀의 열 순서가 곧 컬럼 위치입니다.
+   * 헤더 이름이 뭐든 상관없이 첫 번째 열 → columns[0], 두 번째 열 → columns[1] 순으로 매핑
+   */
   const processUploadedData = (json: any[][]) => {
     if (json.length === 0) return;
 
-    const headerRow = json[0].map((h: any) => String(h || '').trim());
-    const newCols = [...columns];
+    // id 열 제외한 헤더 추출
+    const rawHeaders = json[0].map((h: any) => String(h || '').trim());
+    const idColIndex = rawHeaders.findIndex(h => h.toLowerCase() === 'id');
+    const headerRow = rawHeaders.filter(h => h && h.toLowerCase() !== 'id');
 
-    // 헤더를 기존 컬럼에 매핑하거나 새로 추가
-    const headerToColId: Record<string, string> = {};
-    headerRow.forEach((h: string) => {
-      if (h && h.toLowerCase() !== 'id') {
-        const existingCol = newCols.find(c => c.label === h);
-        if (existingCol) {
-          headerToColId[h] = existingCol.id;
-        } else {
-          const mappedId = mapHeaderToColumnId(h, newCols);
-          headerToColId[h] = mappedId;
-          if (!newCols.find(c => c.id === mappedId)) {
-            newCols.push({ id: mappedId, label: h });
-          }
-        }
-      }
-    });
-    saveColumns(newCols);
+    // 위치 기반으로 헤더를 기존 컬럼에 매핑
+    const { headerToColId, updatedColumns } = mapHeadersByPosition(headerRow, columns);
+    saveColumns(updatedColumns);
 
     const newFromUpload: CarRecord[] = [];
     const currentMaxId = records.length > 0 ? Math.max(...records.map(r => r.id)) : 0;
@@ -239,7 +226,7 @@ const AdminDashboard: React.FC = () => {
       const row = json[i];
       if (row && row.length > 0) {
         const record: CarRecord = { id: nextId++ };
-        headerRow.forEach((h: string, idx: number) => {
+        rawHeaders.forEach((h: string, idx: number) => {
           if (h.toLowerCase() === 'id') {
             record.id = parseInt(row[idx]) || record.id;
           } else {
@@ -255,8 +242,6 @@ const AdminDashboard: React.FC = () => {
     saveRecords([...records, ...newFromUpload]);
     alert(`${newFromUpload.length}개의 데이터가 추가되었습니다.`);
   };
-
-
 
   const handleAddColumn = () => {
     if (!newColumnName.trim()) {
@@ -326,9 +311,11 @@ const AdminDashboard: React.FC = () => {
 
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <h3 className="font-bold text-slate-900 mb-2 text-sm">속성 관리</h3>
+              <p className="text-[10px] text-slate-400 mb-3">⚠️ 라벨(이름)만 변경됩니다. 기존 데이터는 그대로 유지됩니다.</p>
               <div className="space-y-3 mb-4">
-                {columns.map(col => (
+                {columns.map((col, idx) => (
                   <div key={col.id} className="flex gap-2 items-center w-full">
+                    <span className="text-[10px] text-slate-300 font-mono w-4 text-center flex-shrink-0">{idx + 1}</span>
                     <input
                       value={col.label}
                       onChange={e => handleUpdateColumnLabel(col.id, e.target.value)}
@@ -357,6 +344,7 @@ const AdminDashboard: React.FC = () => {
 
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <h3 className="font-bold text-slate-900 mb-2 text-sm">대량 업로드 (.csv / .xlsx)</h3>
+              <p className="text-[10px] text-slate-400 mb-2">파일의 열 순서가 위 속성 순서와 동일하게 매핑됩니다.</p>
               <label className="relative flex flex-col items-center justify-center w-full h-24 border-2 border-slate-100 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition overflow-hidden">
                 <span className="text-xs text-slate-400 font-medium text-center z-10 pointer-events-none">
                   파일 선택<br />
