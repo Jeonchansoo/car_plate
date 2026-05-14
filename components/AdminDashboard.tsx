@@ -95,6 +95,13 @@ const AdminDashboard: React.FC = () => {
     setNewRecordVals({});
   };
 
+  /** 기존 행의 셀 수정 (새로 추가한 컬럼 값 포함) */
+  const handleRecordCellChange = (recordId: number, colId: string, value: string) => {
+    saveRecords(
+      records.map(r => (r.id === recordId ? { ...r, [colId]: value } : r)),
+    );
+  };
+
   // 전체 삭제 시 수동등록/속성관리도 초기화
   const handleDeleteSelected = () => {
     if (selectedIds.length === 0) {
@@ -422,8 +429,15 @@ const AdminDashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-slate-400 text-xs">{r.id}</td>
                       {columns.map(col => (
-                        <td key={'td_' + col.id} className="px-6 py-4 text-slate-700 text-sm">
-                          {r[col.id]}
+                        <td key={'td_' + col.id} className="px-4 py-2 align-middle min-w-[10rem]">
+                          <input
+                            type="text"
+                            value={r[col.id] != null ? String(r[col.id]) : ''}
+                            onChange={e => handleRecordCellChange(r.id, col.id, e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder={col.label}
+                            aria-label={`${col.label} (${r.id}행)`}
+                          />
                         </td>
                       ))}
                     </tr>

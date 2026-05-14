@@ -321,7 +321,14 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
 
               // 처음 3개 컬럼 이외의 추가 컬럼
               const extraColumns = columns.slice(3);
-              
+              const extraWithValues = extraColumns.filter(col => {
+                const v = record[col.id];
+                return v !== undefined && v !== null && String(v).trim() !== '';
+              });
+              const extraCount = extraWithValues.length;
+              const extraGridClass =
+                extraCount <= 1 ? 'grid grid-cols-1 gap-1' : 'grid grid-cols-2 gap-1';
+
               return (
                 <div key={record.id} className="p-2 space-y-1 hover:bg-blue-50/30 transition border-b-2 border-slate-300 shadow-sm">
                   {/* 컬럼1(이름), 컬럼3(세 번째) - 모바일에서도 가로로 표시 */}
@@ -330,20 +337,6 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
                     <div className="col-span-4 flex flex-col items-center justify-center py-1 px-1 bg-white rounded border border-slate-200 min-w-0">
                       <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5 text-center">{nameColDef?.label || '이름'}</div>
                       <div className="text-xl font-black text-slate-900 text-center truncate w-full">{displayName}</div>
-                      {extraColumns.length > 0 && (
-                        <div className="mt-0.5 space-y-0.5">
-                          {extraColumns.slice(0, 1).map(col => {
-                            const value = record[col.id];
-                            if (value === undefined || value === null || value === '') return null;
-                            return (
-                              <div key={col.id} className="text-[10px] text-slate-600 text-center">
-                                <span className="font-semibold text-slate-400">{col.label}:</span>
-                                <span className="text-slate-800 ml-0.5 truncate block">{String(value)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
                     </div>
 
                     {/* 세 번째 컬럼 (출입증/분류 등 역할) */}
@@ -355,29 +348,35 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
                     )}
                   </div>
 
-                  {/* 추가 정보가 있을 경우 표시 (4번째 컬럼부터) */}
-                  {extraColumns.length > 1 && (
-                    <div className="p-1 bg-slate-50 rounded border border-slate-200">
-                      <div className="text-[10px] font-semibold text-slate-700 mb-0.5">추가 정보</div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
-                        {extraColumns.slice(1).map(col => {
-                          const value = record[col.id];
-                          if (value === undefined || value === null || value === '') return null;
-                          return (
-                            <div key={col.id} className="text-[10px] text-slate-600 flex gap-1">
-                              <span className="font-semibold text-slate-400 min-w-[3rem]">{col.label}</span>
-                              <span className="text-slate-800">{String(value)}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 두 번째 컬럼 (차량 번호 역할) */}
+                  {/* 두 번째 컬럼 (차량 번호 역할) + 4번째 이후 수동 추가 컬럼은 번호판 아래 박스에 표시 */}
                   <div className="bg-slate-100 px-2 py-1 rounded border border-slate-200">
                     <div className="text-[8px] text-slate-400 font-bold uppercase mb-0.5 text-center tracking-[0.2em]">{carColDef?.label || 'Vehicle Number'}</div>
                     <div className="text-4xl font-black text-slate-800 tracking-wider whitespace-nowrap text-center">{carNumber}</div>
+                    {extraCount > 0 && (
+                      <div className="mt-2 pt-2 border-t border-slate-300/80 rounded-b-lg bg-white/60 px-1.5 py-1.5">
+                        <div className={extraGridClass}>
+                          {extraWithValues.map((col, idx) => {
+                            const isLastOdd =
+                              extraCount >= 2 && idx === extraCount - 1 && extraCount % 2 === 1;
+                            return (
+                              <div
+                                key={col.id}
+                                className={`flex flex-col items-center justify-center py-1 px-1 rounded-md border border-slate-200 bg-white min-w-0 ${
+                                  isLastOdd ? 'col-span-2' : ''
+                                }`}
+                              >
+                                <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5 text-center w-full truncate">
+                                  {col.label}
+                                </div>
+                                <div className="text-xl font-black text-slate-900 text-center truncate w-full">
+                                  {String(record[col.id])}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
