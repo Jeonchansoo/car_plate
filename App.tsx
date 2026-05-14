@@ -16,7 +16,11 @@ const App: React.FC = () => {
   useEffect(() => {
     const saved = localStorage.getItem('carplate_auth');
     if (saved) {
-      setAuth(JSON.parse(saved));
+      try {
+        setAuth(JSON.parse(saved));
+      } catch {
+        localStorage.removeItem('carplate_auth');
+      }
     }
   }, []);
 

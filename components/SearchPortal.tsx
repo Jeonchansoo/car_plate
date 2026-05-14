@@ -33,24 +33,27 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
 
   const {
     status: pressAndHoldStatus,
-    isListening: isPressAndHoldListening,
     rawTranscript: pressAndHoldTranscript,
     digits: pressAndHoldDigits,
     error: pressAndHoldError,
-    handleMouseDown,
-    handleMouseUp,
-    handleTouchStart,
-    handleTouchEnd,
   } = usePressAndHoldSpeech({ lang: 'ko-KR' });
 
   useEffect(() => {
     const saved = localStorage.getItem('car_records');
     if (saved) {
-      setRecords(JSON.parse(saved));
+      try {
+        setRecords(JSON.parse(saved));
+      } catch {
+        localStorage.removeItem('car_records');
+      }
     }
     const savedCols = localStorage.getItem('car_columns');
     if (savedCols) {
-      setColumns(JSON.parse(savedCols));
+      try {
+        setColumns(JSON.parse(savedCols));
+      } catch {
+        localStorage.removeItem('car_columns');
+      }
     }
 
     // 자동 마이크 권한 요청 (사용자 경험 향상)
@@ -86,14 +89,6 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
       setHasSearched(false);
       startListening();
     }
-  };
-
-  const handlePressAndHoldStart = async () => {
-    const hasPermission = await requestMicrophonePermission();
-    if (!hasPermission) {
-      console.log('마이크 권한이 필요합니다.');
-    }
-    handleMouseDown();
   };
 
   const runSearch = (value: string) => {
@@ -323,7 +318,8 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
               const extraColumns = columns.slice(3);
               const extraWithValues = extraColumns.filter(col => {
                 const v = record[col.id];
-                return v !== undefined && v !== null && String(v).trim() !== '';
+                const shouldAlwaysShow = col.label.includes('소속');
+                return shouldAlwaysShow || (v !== undefined && v !== null && String(v).trim() !== '');
               });
               const extraCount = extraWithValues.length;
               const extraGridClass =
@@ -368,8 +364,8 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
                                 <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5 text-center w-full truncate">
                                   {col.label}
                                 </div>
-                                <div className="text-xl font-black text-slate-900 text-center truncate w-full">
-                                  {String(record[col.id])}
+                                <div className="min-h-[1.75rem] flex items-center justify-center text-xl font-black text-slate-900 text-center truncate w-full">
+                                  {String(record[col.id] ?? '')}
                                 </div>
                               </div>
                             );
@@ -405,7 +401,7 @@ const SearchPortal: React.FC<{ user: User }> = ({ user }) => {
           {['3734', '2625', '1234', '7889'].map(num => (
             <button
               key={num}
-              onClick={() => { setQuery(num); setHasSearched(false); setIsTextSearchMode(false); }}
+              onClick={() => { setQuery(num); setIsTextSearchMode(false); runSearch(num); }}
               className="p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-400 hover:text-blue-600 transition text-sm font-medium text-slate-600 text-center shadow-sm"
             >
               "{num}" 검색해보기

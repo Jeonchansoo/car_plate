@@ -70,10 +70,24 @@ const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     const savedRecords = localStorage.getItem('car_records');
-    setRecords(savedRecords ? JSON.parse(savedRecords) : INITIAL_RECORDS);
+    if (savedRecords) {
+      try {
+        setRecords(JSON.parse(savedRecords));
+      } catch {
+        localStorage.removeItem('car_records');
+        setRecords(INITIAL_RECORDS);
+      }
+    } else {
+      setRecords(INITIAL_RECORDS);
+    }
+
     const savedCols = localStorage.getItem('car_columns');
     if (savedCols) {
-      setColumns(JSON.parse(savedCols));
+      try {
+        setColumns(JSON.parse(savedCols));
+      } catch {
+        localStorage.removeItem('car_columns');
+      }
     }
   }, []);
 
@@ -218,7 +232,6 @@ const AdminDashboard: React.FC = () => {
 
     // id 열 제외한 헤더 추출
     const rawHeaders = json[0].map((h: any) => String(h || '').trim());
-    const idColIndex = rawHeaders.findIndex(h => h.toLowerCase() === 'id');
     const headerRow = rawHeaders.filter(h => h && h.toLowerCase() !== 'id');
 
     // 위치 기반으로 헤더를 기존 컬럼에 매핑
@@ -295,8 +308,8 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {activeTab === 'records' ? (
-        <div className="grid lg:grid-cols-4 gap-8">
-          <div className="lg:col-span-1 space-y-6">
+        <div className="grid lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,3.15fr)] gap-4 lg:gap-6">
+          <div className="space-y-4 lg:space-y-5">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <h3 className="font-bold text-slate-900 mb-4">수동 데이터 등록</h3>
               <form onSubmit={handleAddRecord} className="space-y-4">
@@ -316,20 +329,20 @@ const AdminDashboard: React.FC = () => {
               </form>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
               <h3 className="font-bold text-slate-900 mb-2 text-sm">속성 관리</h3>
               <p className="text-[10px] text-slate-400 mb-3">⚠️ 라벨(이름)만 변경됩니다. 기존 데이터는 그대로 유지됩니다.</p>
-              <div className="space-y-3 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2 mb-3 max-h-56 overflow-y-auto pr-1">
                 {columns.map((col, idx) => (
-                  <div key={col.id} className="flex gap-2 items-center w-full">
-                    <span className="text-[10px] text-slate-300 font-mono w-4 text-center flex-shrink-0">{idx + 1}</span>
+                  <div key={col.id} className="flex gap-1.5 items-center w-full">
+                    <span className="text-[10px] text-slate-300 font-mono w-5 text-center flex-shrink-0">{idx + 1}</span>
                     <input
                       value={col.label}
                       onChange={e => handleUpdateColumnLabel(col.id, e.target.value)}
-                      className="px-3 py-1.5 border border-slate-200 rounded text-sm w-full min-w-0 outline-none focus:border-blue-500"
+                      className="h-8 px-2.5 border border-slate-200 rounded text-xs w-full min-w-0 outline-none focus:border-blue-500"
                       placeholder="속성명"
                     />
-                    <button onClick={() => handleDeleteColumn(col.id)} className="px-3 py-1.5 bg-red-50 text-red-600 rounded text-xs font-bold hover:bg-red-100 transition whitespace-nowrap flex-shrink-0">
+                    <button onClick={() => handleDeleteColumn(col.id)} className="h-8 px-2.5 bg-red-50 text-red-600 rounded text-[11px] font-bold hover:bg-red-100 transition whitespace-nowrap flex-shrink-0">
                       삭제
                     </button>
                   </div>
@@ -339,20 +352,20 @@ const AdminDashboard: React.FC = () => {
                 <input
                   value={newColumnName}
                   onChange={e => setNewColumnName(e.target.value)}
-                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm w-full min-w-0 outline-none focus:border-blue-500"
+                  className="h-9 px-3 border border-slate-200 rounded-lg text-xs w-full min-w-0 outline-none focus:border-blue-500"
                   placeholder="새 속성명 입력..."
                   onKeyDown={e => { if (e.key === 'Enter') handleAddColumn(); }}
                 />
-                <button onClick={handleAddColumn} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition whitespace-nowrap flex-shrink-0">
+                <button onClick={handleAddColumn} className="h-9 px-3 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition whitespace-nowrap flex-shrink-0">
                   추가
                 </button>
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
               <h3 className="font-bold text-slate-900 mb-2 text-sm">대량 업로드 (.csv / .xlsx)</h3>
               <p className="text-[10px] text-slate-400 mb-2">파일의 열 순서가 위 속성 순서와 동일하게 매핑됩니다.</p>
-              <label className="relative flex flex-col items-center justify-center w-full h-24 border-2 border-slate-100 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition overflow-hidden">
+              <label className="relative flex flex-col items-center justify-center w-full h-16 border-2 border-slate-100 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition overflow-hidden">
                 <span className="text-xs text-slate-400 font-medium text-center z-10 pointer-events-none">
                   파일 선택<br />
                   (CSV, 엑셀)
@@ -370,33 +383,33 @@ const AdminDashboard: React.FC = () => {
 
           </div>
 
-          <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-            <div className="px-6 py-4 bg-slate-50 border-b flex justify-between items-center">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="px-4 py-3 bg-slate-50 border-b flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
               <h3 className="font-bold text-slate-900 text-sm">전체 차량 데이터 ({records.length})</h3>
-              <div className="flex gap-2">
+              <div className="flex gap-2 w-full sm:w-auto">
                 <button
                   onClick={() => {
                     if (allSelected) setSelectedIds([]);
                     else setSelectedIds(records.map(r => r.id));
                   }}
-                  className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-300 transition"
+                  className="flex-1 sm:flex-none px-3 py-2 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-300 transition"
                 >
                   {allSelected ? '전체 해제' : '전체 선택'}
                 </button>
                 <button
                   onClick={handleDeleteSelected}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg text-xs font-bold hover:bg-red-600 transition disabled:opacity-50"
+                  className="flex-1 sm:flex-none px-3 py-2 bg-red-500 text-white rounded-lg text-xs font-bold hover:bg-red-600 transition disabled:opacity-50"
                   disabled={selectedIds.length === 0}
                 >
                   선택항목 삭제 ({selectedIds.length})
                 </button>
               </div>
             </div>
-            <div className="overflow-x-auto flex-1">
-              <table className="w-full text-left min-w-max">
-                <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-widest border-b">
+            <div className="overflow-x-auto flex-1 touch-pan-x">
+              <table className="w-full text-left min-w-[360px] sm:min-w-[520px] table-fixed">
+                <thead className="bg-slate-50 text-slate-400 text-[9px] uppercase tracking-wide border-b">
                   <tr>
-                    <th className="px-6 py-4 font-bold w-12">
+                    <th className="px-1 py-1.5 font-bold w-6">
                       <input
                         type="checkbox"
                         checked={allSelected}
@@ -404,19 +417,19 @@ const AdminDashboard: React.FC = () => {
                           if (e.target.checked) setSelectedIds(records.map(r => r.id));
                           else setSelectedIds([]);
                         }}
-                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="w-3 h-3 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
                     </th>
-                    <th className="px-6 py-4 font-bold">ID</th>
+                    <th className="px-1 py-1.5 font-bold w-7">ID</th>
                     {columns.map(col => (
-                      <th key={'th_' + col.id} className="px-6 py-4 font-bold">{col.label}</th>
+                      <th key={'th_' + col.id} className="px-1 py-1.5 font-bold w-16 sm:w-20 truncate">{col.label}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {records.map((r) => (
                     <tr key={r.id} className={`hover:bg-blue-50/20 transition group ${selectedIds.includes(r.id) ? 'bg-blue-50/10' : ''}`}>
-                      <td className="px-6 py-4">
+                      <td className="px-1 py-1">
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(r.id)}
@@ -424,18 +437,18 @@ const AdminDashboard: React.FC = () => {
                             if (e.target.checked) setSelectedIds([...selectedIds, r.id]);
                             else setSelectedIds(selectedIds.filter(id => id !== r.id));
                           }}
-                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          className="w-3 h-3 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
                       </td>
-                      <td className="px-6 py-4 text-slate-400 text-xs">{r.id}</td>
+                      <td className="px-1 py-1 text-slate-400 text-[10px]">{r.id}</td>
                       {columns.map(col => (
-                        <td key={'td_' + col.id} className="px-4 py-2 align-middle min-w-[10rem]">
+                        <td key={'td_' + col.id} className="px-1 py-0.5 align-middle">
                           <input
                             type="text"
                             value={r[col.id] != null ? String(r[col.id]) : ''}
                             onChange={e => handleRecordCellChange(r.id, col.id, e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder={col.label}
+                            className="h-6 w-full px-1 py-0.5 border border-slate-200 rounded text-[10px] sm:text-[11px] text-slate-800 bg-white outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder=""
                             aria-label={`${col.label} (${r.id}행)`}
                           />
                         </td>
