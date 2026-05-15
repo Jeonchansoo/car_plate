@@ -388,7 +388,7 @@ const AdminDashboard: React.FC = () => {
 
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-0 max-h-[72vh] lg:max-h-[calc(100vh-12rem)]">
             <div className="px-4 py-3 bg-slate-50 border-b flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
               <h3 className="font-bold text-slate-900 text-sm">전체 차량 데이터 ({records.length})</h3>
               <div className="flex gap-2 w-full sm:w-auto">
@@ -411,8 +411,8 @@ const AdminDashboard: React.FC = () => {
               </div>
             </div>
             <div
-              className="overflow-x-auto overflow-y-visible flex-1 overscroll-contain"
-              style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
+              className="overflow-auto flex-1 min-h-0"
+              style={{ WebkitOverflowScrolling: 'touch', touchAction: 'auto' }}
             >
               <table
                 className="w-full text-left table-fixed"

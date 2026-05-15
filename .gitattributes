@@ -1,2 +1,12 @@
-# 줄바꿈 자동 처리: Windows에서는 CRLF, Git 저장소에서는 LF로 통일
-* text=auto eol=crlf
+# Normalize text files to LF in the repository.
+* text=auto eol=lf
+
+# Keep generated/binary assets untouched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.xlsx binary
+*.xls binary
