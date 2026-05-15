@@ -289,6 +289,11 @@ const AdminDashboard: React.FC = () => {
   };
 
   const allSelected = records.length > 0 && selectedIds.length === records.length;
+  const dataColumnCount = columns.length + 1; // ID + managed attributes
+  const fitsMobilePortrait = dataColumnCount <= 5;
+  const mobileTableMinWidth = fitsMobilePortrait
+    ? '100%'
+    : `${76 + columns.length * 112}px`;
 
   return (
     <div className="space-y-6">
@@ -405,11 +410,27 @@ const AdminDashboard: React.FC = () => {
                 </button>
               </div>
             </div>
-            <div className="overflow-x-auto flex-1 touch-pan-x">
-              <table className="w-full text-left min-w-[360px] sm:min-w-[520px] table-fixed">
+            <div
+              className="overflow-x-auto overflow-y-visible flex-1 overscroll-contain"
+              style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
+            >
+              <table
+                className="w-full text-left table-fixed"
+                style={{ minWidth: mobileTableMinWidth }}
+              >
+                <colgroup>
+                  <col style={{ width: fitsMobilePortrait ? '8%' : '32px' }} />
+                  <col style={{ width: fitsMobilePortrait ? '12%' : '44px' }} />
+                  {columns.map(col => (
+                    <col
+                      key={'col_' + col.id}
+                      style={{ width: fitsMobilePortrait ? `${80 / Math.max(columns.length, 1)}%` : '112px' }}
+                    />
+                  ))}
+                </colgroup>
                 <thead className="bg-slate-50 text-slate-400 text-[9px] uppercase tracking-wide border-b">
                   <tr>
-                    <th className="px-1 py-1.5 font-bold w-6">
+                    <th className="px-1 py-1.5 font-bold">
                       <input
                         type="checkbox"
                         checked={allSelected}
@@ -420,9 +441,9 @@ const AdminDashboard: React.FC = () => {
                         className="w-3 h-3 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
                     </th>
-                    <th className="px-1 py-1.5 font-bold w-7">ID</th>
+                    <th className="px-1 py-1.5 font-bold">ID</th>
                     {columns.map(col => (
-                      <th key={'th_' + col.id} className="px-1 py-1.5 font-bold w-16 sm:w-20 truncate">{col.label}</th>
+                      <th key={'th_' + col.id} className="px-1 py-1.5 font-bold truncate">{col.label}</th>
                     ))}
                   </tr>
                 </thead>
